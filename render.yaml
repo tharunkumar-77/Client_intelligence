@@ -3,8 +3,11 @@ services:
     name: client-intelligence
     env: python
     buildCommand: pip install -r requirements.txt
+    preDeployCommand: flask db upgrade
     startCommand: gunicorn "app:create_app()" --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
       - key: FLASK_ENV
         value: production
       - key: DATABASE_URL
