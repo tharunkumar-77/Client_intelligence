@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Watchlist — Client Intelligence{% endblock %}
+
+{% block extra_head %}
+<style>
+  .wl-grid {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .wl-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.12s;
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .wl-item:hover   { background: var(--glass); }
+  .wl-item.active  { background: rgba(108,99,255,0.12); border-color: var(--accent); color: var(--accent); }
+  .wl-count {
+    font-size: 11px; padding: 1px 7px; border-radius: 10px;
+    background: var(--surface-2); color: var(--text-muted);
+  }
+  .wl-item.active .wl-count { background: rgba(108,99,255,0.2); color: var(--accent); }
+
+  .wl-client-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+  .wl-client-row:hover { background: rgba(108,99,255,0.05); }
+  .wl-client-row:last-child { border-bottom: none; }
+  .wl-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(108,99,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0;
+  }
+  .wl-client-name { font-size: 13px; font-weight: 600; }
+  .wl-client-sub  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h2>Watchlists</h2>
+    <p>Group and monitor clients that need close attention.</p>
+  </div>
+  <button class="btn btn-primary" onclick="openNewWL()" id="btn-new-wl">
+    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+    New Watchlist
+  </button>
+</div>
+
+<div class="page-body">
+  <div class="wl-grid" id="wl-layout">
+
+    <!-- Sidebar: watchlist names -->
+    <div>
+      <p class="section-title">My Watchlists</p>
+      <div id="wl-sidebar" class="card" style="padding:8px;">
+        <div style="color:var(--text-muted);font-size:13px;padding:12px;">Loading…</div>
+      </div>
+      <!-- Create form (hidden by default) -->
+      <div id="new-wl-form" style="display:none;margin-top:12px;" class="card">
+        <p class="section-title" style="margin-bottom:12px;">New Watchlist</p>
+        <div class="form-group" style="margin-bottom:10px;">
+          <label for="wl-name">Name</label>
+          <input id="wl-name" type="text" placeholder="e.g. High Priority Q4" />
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label for="wl-desc">Description (optional)</label>
+          <input id="wl-desc" type="text" placeholder="Brief description" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="createWL()" style="font-size:12px;padding:7px 14px;" id="btn-create-wl">Create</button>
+          <button class="btn btn-ghost"   onclick="closeNewWL()" style="font-size:12px;padding:7px 14px;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main: clients in selected watchlist -->
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+        <p class="section-title" style="margin:0;" id="wl-panel-title">Select a watchlist</p>
+        <div style="display:flex;gap:8px;" id="wl-panel-actions" style="display:none;">
+          <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="openAddClient()" id="btn-add-client">+ Add Client</button>
+          <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;color:var(--danger);" onclick="deleteCurrentWL()" id="btn-del-wl">Delete Watchlist</button>
+        </div>
+      </div>
+      <div class="card" style="padding:0;" id="wl-clients-panel">
+        <div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">
+          <svg width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="opacity:0.3;margin-bottom:10px;display:block;margin-left:auto;margin-right:auto;"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+          Select a watchlist from the left to see its clients.
+        </div>
+      </div>
+
+      <!-- Add client picker (hidden) -->
+      <div id="add-client-picker" style="display:none;margin-top:12px;" class="card">
+        <p class="section-title" style="margin-bottom:12px;">Add Client to Watchlist</p>
+        <div style="display:flex;gap:8px;">
+          <select id="add-client-sel" style="flex:1;"></select>
+          <button class="btn btn-primary" onclick="addClientToWL()" style="font-size:12px;padding:7px 14px;" id="btn-add-confirm">Add</button>
+          <button class="btn btn-ghost"   onclick="closeAddClient()" style="font-size:12px;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+let watchlists  = [];
+let allClients  = [];
+let activeWLId  = null;
+
+async function loadAll() {
+  const [wlRes, cRes] = await Promise.all([
+    fetch('/api/watchlists'),
+    fetch('/api/clients'),
+  ]);
+  watchlists = await wlRes.json();
+  allClients = await cRes.json();
+  renderSidebar();
+  populateClientSel();
+}
+
+function renderSidebar() {
+  const sb = document.getElementById('wl-sidebar');
+  if (!watchlists.length) {
+    sb.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:12px;">No watchlists yet.</div>';
+    return;
+  }
+  sb.innerHTML = watchlists.map(w => `
+    <div class="wl-item ${w.id===activeWLId?'active':''}" id="wl-item-${w.id}" onclick="selectWL('${w.id}')">
+      <span>${w.name}</span>
+      <span class="wl-count">${w.client_count}</span>
+    </div>`).join('');
+}
+
+async function selectWL(id) {
+  activeWLId = id;
+  renderSidebar();
+  const wl = watchlists.find(w => w.id === id);
+  document.getElementById('wl-panel-title').textContent = wl ? wl.name : '';
+  document.getElementById('wl-panel-actions').style.display = 'flex';
+  document.getElementById('add-client-picker').style.display = 'none';
+
+  const res    = await fetch(`/api/watchlists/${id}/clients`);
+  const clients = await res.json();
+  const panel  = document.getElementById('wl-clients-panel');
+
+  if (!clients.length) {
+    panel.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);font-size:13px;">No clients in this watchlist yet. Click "+ Add Client".</div>';
+    return;
+  }
+
+  const riskColors = {High:'var(--danger)',Medium:'var(--warn)',Low:'var(--success)'};
+  panel.innerHTML = clients.map(c => `
+    <div class="wl-client-row">
+      <div class="wl-avatar">${c.name.charAt(0).toUpperCase()}</div>
+      <div style="flex:1;">
+        <a href="/clients/${c.id}" class="wl-client-name row-link">${c.name}</a>
+        <div class="wl-client-sub">${c.email||'—'} · ${c.segment||'—'}</div>
+      </div>
+      ${c.risk_level ? `<span class="badge" style="background:${riskColors[c.risk_level]||'#8494b5'}22;color:${riskColors[c.risk_level]||'#8494b5'};border:1px solid ${riskColors[c.risk_level]||'#8494b5'}44;">${c.risk_level}</span>` : ''}
+      <button onclick="removeClient('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:4px;" title="Remove from watchlist">✕</button>
+    </div>`).join('');
+}
+
+async function removeClient(clientId) {
+  if (!activeWLId) return;
+  await fetch(`/api/watchlists/${activeWLId}/clients/${clientId}`, {method:'DELETE'});
+  await loadAll();
+  selectWL(activeWLId);
+}
+
+// ── New Watchlist ───────────────────────────────────────────────────────────
+function openNewWL()  { document.getElementById('new-wl-form').style.display=''; }
+function closeNewWL() { document.getElementById('new-wl-form').style.display='none'; }
+
+async function createWL() {
+  const name = document.getElementById('wl-name').value.trim();
+  const desc = document.getElementById('wl-desc').value.trim();
+  if (!name) return;
+  const btn = document.getElementById('btn-create-wl');
+  btn.disabled = true;
+  await fetch('/api/watchlists', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name, description: desc}),
+  });
+  document.getElementById('wl-name').value = '';
+  document.getElementById('wl-desc').value = '';
+  closeNewWL();
+  await loadAll();
+  btn.disabled = false;
+}
+
+async function deleteCurrentWL() {
+  if (!activeWLId) return;
+  const wl = watchlists.find(w => w.id === activeWLId);
+  if (!confirm(`Delete watchlist "${wl?.name}"?`)) return;
+  await fetch(`/api/watchlists/${activeWLId}`, {method:'DELETE'});
+  activeWLId = null;
+  document.getElementById('wl-panel-title').textContent = 'Select a watchlist';
+  document.getElementById('wl-panel-actions').style.display = 'none';
+  document.getElementById('wl-clients-panel').innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">Select a watchlist to see its clients.</div>';
+  await loadAll();
+}
+
+// ── Add client picker ───────────────────────────────────────────────────────
+function populateClientSel() {
+  const sel = document.getElementById('add-client-sel');
+  sel.innerHTML = allClients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+function openAddClient()  { document.getElementById('add-client-picker').style.display=''; }
+function closeAddClient() { document.getElementById('add-client-picker').style.display='none'; }
+
+async function addClientToWL() {
+  if (!activeWLId) return;
+  const clientId = document.getElementById('add-client-sel').value;
+  const btn = document.getElementById('btn-add-confirm');
+  btn.disabled = true;
+  await fetch(`/api/watchlists/${activeWLId}/clients/${clientId}`, {method:'POST'});
+  closeAddClient();
+  await loadAll();
+  selectWL(activeWLId);
+  btn.disabled = false;
+}
+
+// Responsive
+function fixLayout() {
+  const el = document.getElementById('wl-layout');
+  if (el) el.style.gridTemplateColumns = window.innerWidth < 800 ? '1fr' : '280px 1fr';
+}
+window.addEventListener('resize', fixLayout);
+fixLayout();
+
+loadAll();
+</script>
+{% endblock %}

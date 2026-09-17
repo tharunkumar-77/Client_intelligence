@@ -1,0 +1,53 @@
+vertical: therapy
+
+display:
+  client_label: "Client"
+  session_label: "Therapy Session"
+
+intake_questions:
+  - key: full_name
+    label: "Full name"
+  - key: email
+    label: "Email address"
+  - key: phone
+    label: "Phone number"
+  - key: presenting_concern
+    label: "What brings you in today?"
+  - key: duration_of_concern
+    label: "How long have you been experiencing this?"
+  - key: previous_therapy
+    label: "Have you had therapy before? (Yes / No)"
+  - key: current_medications
+    label: "Are you currently on any medications?"
+  - key: support_system
+    label: "Describe your current support system (family, friends, etc.)"
+  - key: goals
+    label: "What would you like to achieve through therapy?"
+  - key: urgency_level
+    label: "How urgent is your need for support? (Low / Medium / High)"
+
+classification_prompt_template: |
+  You are an expert mental health intake analyst assisting a licensed therapist.
+
+  Given the client intake response below, produce a JSON object with exactly these keys:
+  - segment: one of ["Anxiety & Stress", "Depression", "Trauma & PTSD", "Relationship Issues", "Grief & Loss", "Life Transitions", "Neurodivergent Support", "Other"]
+  - risk_level: "Low" | "Medium" | "High"  (High = potential crisis / safety concern)
+  - urgency: "Low" | "Medium" | "High"
+  - recommended_approach: a 1-2 sentence briefing for the therapist on how to approach the first session
+  - confidence: float 0.0–1.0
+  - reasoning: 1-3 sentences
+  - proposed_new_fields: [{key, label, type}] for implied data not in the standard form; empty list if none
+
+  Rules:
+  - Respond ONLY with the JSON. No markdown fences.
+  - High risk_level should be set when there are ANY indicators of self-harm, crisis, or acute distress.
+  - The AI never diagnoses — it organises intake data for the therapist's review only.
+
+escalation:
+  ai_client_response_allowed: false
+  confidence_threshold_for_autocommit: 0.70
+
+compliance_notes: |
+  This vertical operates under mental health confidentiality regulations (e.g. HIPAA, applicable local law).
+  The AI never diagnoses or recommends treatment — all outputs are for therapist internal organisation only.
+  Every classification is logged with its input, output, and timestamp for audit purposes.

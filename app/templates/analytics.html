@@ -1,0 +1,287 @@
+{% extends "base.html" %}
+{% block title %}Analytics — Client Intelligence{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  .analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+    margin-bottom: 28px;
+  }
+  .chart-card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    backdrop-filter: blur(8px);
+    position: relative;
+  }
+  .chart-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+  .chart-wrap {
+    position: relative;
+    height: 220px;
+  }
+  .chart-wrap.tall { height: 280px; }
+
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .kpi-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+  .kpi-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .kpi-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); }
+  .kpi-value { font-size: 28px; font-weight: 700; margin-top: 5px; letter-spacing: -1px; }
+  .kpi-value.accent  { color: var(--accent); }
+  .kpi-value.danger  { color: var(--danger); }
+  .kpi-value.success { color: var(--success); }
+  .kpi-value.warn    { color: var(--warn); }
+
+  .chart-loader {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--text-muted);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h2>Analytics &amp; Insights</h2>
+    <p>AI-powered overview of your practice intelligence data.</p>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;">
+    <button class="btn btn-ghost" onclick="backfillEmbeddings()" id="btn-backfill" title="Generates Gemini embeddings so AI Search works">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+      Prime AI Search
+    </button>
+    <a href="/api/clients/export.csv" class="btn btn-ghost" id="btn-export-csv">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export CSV
+    </a>
+    <button class="btn btn-primary" onclick="loadData()" id="btn-refresh">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      Refresh
+    </button>
+  </div>
+</div>
+
+<div class="page-body">
+
+  <!-- KPI strip -->
+  <div class="kpi-strip" id="kpi-strip">
+    <div class="kpi-card"><div class="kpi-label">Total Clients</div><div class="kpi-value accent" id="kpi-clients">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">Session Notes</div><div class="kpi-value accent" id="kpi-notes">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">Overdue Reminders</div><div class="kpi-value danger" id="kpi-overdue">—</div></div>
+    <div class="kpi-card"><div class="kpi-label">Resolved Reminders</div><div class="kpi-value success" id="kpi-resolved">—</div></div>
+  </div>
+
+  <!-- Row 1: Segment + Risk + Sentiment + Urgency donuts -->
+  <div class="analytics-grid">
+    <div class="chart-card">
+      <div class="chart-title">Clients by Segment</div>
+      <div class="chart-wrap"><canvas id="chartSegment"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Risk Level Distribution</div>
+      <div class="chart-wrap"><canvas id="chartRisk"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Sentiment Distribution (Notes)</div>
+      <div class="chart-wrap"><canvas id="chartSentiment"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Urgency Distribution</div>
+      <div class="chart-wrap"><canvas id="chartUrgency"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Timeseries -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;" class="analytics-ts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Notes Recorded — Last 30 Days</div>
+      <div class="chart-wrap tall"><canvas id="chartNotesTime"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">New Clients — Last 30 Days</div>
+      <div class="chart-wrap tall"><canvas id="chartClientsTime"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Row 3: Triage scores bar -->
+  <div class="chart-card" style="margin-bottom:28px;">
+    <div class="chart-title">Average Triage Score by Segment</div>
+    <div class="chart-wrap" id="triage-wrap">
+      <canvas id="chartTriage"></canvas>
+      <div class="chart-loader" id="triage-empty" style="display:none;">No triage scores yet — run triage from the Lead Triage page.</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Colour palette ──────────────────────────────────────────────────────────
+const PALETTE = ['#6c63ff','#00d4aa','#ffa94d','#ff4d6d','#4ade80','#818cf8','#34d399','#f472b6','#fb923c','#a78bfa'];
+
+const CHART_DEFAULTS = {
+  plugins: {
+    legend: { labels: { color:'#8494b5', font:{family:'Inter',size:11}, boxWidth:12, padding:12 } },
+    tooltip: { backgroundColor:'#0f1629', borderColor:'rgba(99,130,255,0.25)', borderWidth:1, titleColor:'#e2e8f0', bodyColor:'#8494b5' }
+  }
+};
+
+Chart.defaults.color = '#8494b5';
+Chart.defaults.borderColor = 'rgba(99,130,255,0.1)';
+Chart.defaults.font.family = 'Inter';
+
+const charts = {};
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function makeDoughnut(canvasId, labels, data, colorMap) {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colorMap
+          ? labels.map(l => (colorMap[l]||'#6c63ff')+'cc')
+          : PALETTE.slice(0, data.length),
+        borderColor:'#080d1a', borderWidth:3, hoverOffset:6,
+      }]
+    },
+    options: { ...CHART_DEFAULTS, cutout:'68%', maintainAspectRatio:false }
+  });
+}
+
+function makeBar(canvasId, labels, data, color='#6c63ff') {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ data, backgroundColor:color+'cc', borderColor:color, borderWidth:1, borderRadius:4 }] },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { ...CHART_DEFAULTS.plugins, legend:{display:false} },
+      maintainAspectRatio:false,
+      scales: {
+        x: { grid:{color:'rgba(99,130,255,0.08)'}, ticks:{color:'#8494b5'} },
+        y: { grid:{color:'rgba(99,130,255,0.08)'}, ticks:{color:'#8494b5',precision:0} }
+      }
+    }
+  });
+}
+
+function makeLine(canvasId, labels, data, color='#6c63ff') {
+  destroyChart(canvasId);
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  const gradient = ctx.createLinearGradient(0,0,0,280);
+  gradient.addColorStop(0, color+'44');
+  gradient.addColorStop(1, color+'00');
+  charts[canvasId] = new Chart(ctx, {
+    type:'line',
+    data: { labels, datasets:[{ data, borderColor:color, borderWidth:2, backgroundColor:gradient, fill:true, tension:0.4, pointRadius:2, pointHoverRadius:5, pointBackgroundColor:color }] },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { ...CHART_DEFAULTS.plugins, legend:{display:false} },
+      maintainAspectRatio:false,
+      scales: {
+        x: { grid:{color:'rgba(99,130,255,0.08)'}, ticks:{color:'#8494b5', maxTicksLimit:8, callback:(v,i)=>(i%7===0)?labels[i].slice(5):''} },
+        y: { grid:{color:'rgba(99,130,255,0.08)'}, ticks:{color:'#8494b5',precision:0} }
+      }
+    }
+  });
+}
+
+// ── Load data ───────────────────────────────────────────────────────────────
+async function loadData() {
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+
+  try {
+    const res  = await fetch('/api/analytics/overview');
+    const data = await res.json();
+
+    // KPIs
+    document.getElementById('kpi-clients').textContent  = data.total_clients   ?? '—';
+    document.getElementById('kpi-notes').textContent    = data.total_notes     ?? '—';
+    document.getElementById('kpi-overdue').textContent  = data.reminders?.overdue  ?? '—';
+    document.getElementById('kpi-resolved').textContent = data.reminders?.resolved ?? '—';
+
+    // Donuts
+    makeDoughnut('chartSegment', Object.keys(data.clients_by_segment), Object.values(data.clients_by_segment));
+    makeDoughnut('chartRisk',     Object.keys(data.clients_by_risk),     Object.values(data.clients_by_risk),     {High:'#ff4d6d',Medium:'#ffa94d',Low:'#4ade80',Unknown:'#8494b5'});
+    makeDoughnut('chartSentiment',Object.keys(data.sentiment_distribution),Object.values(data.sentiment_distribution),{Positive:'#4ade80',Neutral:'#8494b5',Anxious:'#ffa94d',Concerned:'#fb923c',Negative:'#ff4d6d',Unknown:'#475569'});
+    makeDoughnut('chartUrgency',  Object.keys(data.clients_by_urgency),  Object.values(data.clients_by_urgency),  {High:'#ff4d6d',Medium:'#ffa94d',Low:'#4ade80',Unknown:'#8494b5'});
+
+    // Timeseries
+    makeLine('chartNotesTime',   Object.keys(data.notes_over_time),   Object.values(data.notes_over_time),   '#6c63ff');
+    makeLine('chartClientsTime', Object.keys(data.clients_over_time), Object.values(data.clients_over_time), '#00d4aa');
+
+    // Triage bar
+    const tSeg = Object.keys(data.avg_triage_score_by_segment);
+    if (tSeg.length) {
+      document.getElementById('triage-empty').style.display = 'none';
+      makeBar('chartTriage', tSeg, Object.values(data.avg_triage_score_by_segment), '#ffa94d');
+    } else {
+      document.getElementById('triage-empty').style.display = 'flex';
+    }
+
+  } catch(e) {
+    console.error('Analytics load error', e);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Refresh`;
+  }
+}
+
+// ── Backfill embeddings for AI Search ─────────────────────────────────────
+async function backfillEmbeddings() {
+  const btn  = document.getElementById('btn-backfill');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating embeddings…';
+  try {
+    const res  = await fetch('/api/admin/backfill-embeddings', {method:'POST'});
+    const data = await res.json();
+    btn.textContent = `✅ ${data.updated ?? 0} client(s) embedded`;
+    setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 3000);
+  } catch(e) {
+    btn.textContent = '❌ Failed';
+    setTimeout(() => { btn.innerHTML = orig; btn.disabled = false; }, 3000);
+  }
+}
+
+// Responsive layout
+function fixLayout() {
+  const grid = document.querySelector('.analytics-ts-grid');
+  if (grid) grid.style.gridTemplateColumns = window.innerWidth < 800 ? '1fr' : '1fr 1fr';
+}
+window.addEventListener('resize', fixLayout);
+fixLayout();
+
+loadData();
+</script>
+{% endblock %}

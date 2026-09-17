@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Client Intake — Client Intelligence{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>New Client Intake</h2>
+  <p>Fill in the client details below. The AI will classify and segment them automatically.</p>
+</div>
+
+<div class="page-body">
+  {% if error %}
+  <div class="alert alert-error" id="intake-error">⚠ Classification error: {{ error }}</div>
+  {% endif %}
+
+  <div class="card" style="max-width:700px;">
+    <form method="POST" action="{{ url_for('intake.intake_form_submit') }}" id="intake-form">
+      <div class="form-grid">
+        {% for q in questions %}
+        <div class="form-group {% if loop.first %}full{% endif %}">
+          <label for="field-{{ q.key }}">{{ q.label }}</label>
+          {% if q.key == 'key_concern' or q.key == 'existing_investments' %}
+          <textarea id="field-{{ q.key }}" name="{{ q.key }}" rows="3" placeholder="{{ q.label }}"></textarea>
+          {% elif q.key == 'risk_tolerance' %}
+          <select id="field-{{ q.key }}" name="{{ q.key }}">
+            <option value="">Select…</option>
+            <option value="Low">Low — I prefer to protect my capital</option>
+            <option value="Medium">Medium — Balanced approach</option>
+            <option value="High">High — I'm comfortable with volatility</option>
+          </select>
+          {% elif q.key == 'annual_income_range' %}
+          <select id="field-{{ q.key }}" name="{{ q.key }}">
+            <option value="">Select…</option>
+            <option>Under ₹5L</option>
+            <option>₹5L – ₹10L</option>
+            <option>₹10L – ₹25L</option>
+            <option>₹25L – ₹50L</option>
+            <option>₹50L – ₹1Cr</option>
+            <option>Above ₹1Cr</option>
+          </select>
+          {% elif q.key == 'email' %}
+          <input type="email" id="field-{{ q.key }}" name="{{ q.key }}" placeholder="{{ q.label }}" />
+          {% elif q.key == 'phone' %}
+          <input type="tel" id="field-{{ q.key }}" name="{{ q.key }}" placeholder="+91 98765 43210" />
+          {% else %}
+          <input type="text" id="field-{{ q.key }}" name="{{ q.key }}" placeholder="{{ q.label }}" />
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <div style="margin-top:24px;display:flex;align-items:center;gap:14px;">
+        <button type="submit" class="btn btn-primary" id="submit-intake">
+          <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+          Submit & Classify
+        </button>
+        <a href="{{ url_for('api.dashboard') }}" class="btn btn-ghost">Cancel</a>
+        <span id="intake-loading" style="display:none;font-size:12px;color:var(--text-muted);">Classifying with AI…</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="max-width:700px;margin-top:20px;padding:16px 20px;">
+    <p style="font-size:12px;color:var(--text-muted);line-height:1.6;">
+      <strong style="color:var(--text);">How it works:</strong>
+      Submitting this form triggers the AI classification pipeline. Claude will analyse the response,
+      assign a segment and risk level, and create the client record automatically. The result appears
+      on the dashboard within seconds.
+    </p>
+  </div>
+</div>
+
+<script>
+  document.getElementById('intake-form').addEventListener('submit', function() {
+    document.getElementById('submit-intake').disabled = true;
+    document.getElementById('intake-loading').style.display = 'inline';
+  });
+</script>
+{% endblock %}

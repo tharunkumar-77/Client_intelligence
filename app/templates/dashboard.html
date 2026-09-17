@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Client Intelligence{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── schema banner ── */
+  .schema-banner {
+    background: rgba(108,99,255,0.08);
+    border: 1px solid rgba(108,99,255,0.25);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .schema-banner-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+  .schema-banner h4  { font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--accent); }
+  .schema-banner p   { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+  .field-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .field-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+  }
+  .field-chip button {
+    background: none; border: none; cursor: pointer;
+    font-size: 13px; line-height: 1; padding: 0;
+  }
+  .chip-confirm { color: var(--success); }
+  .chip-reject  { color: var(--danger); }
+
+  /* ── Overdue reminders banner ── */
+  .overdue-banner {
+    background: rgba(255,77,109,0.08);
+    border: 1px solid rgba(255,77,109,0.25);
+    border-radius: var(--radius);
+    padding: 14px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .overdue-banner p { font-size: 13px; color: #ff8fa3; }
+  .overdue-banner p strong { color: var(--danger); }
+
+  /* ── Segment donut mini chart ── */
+  .seg-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--accent);
+    margin-top: 6px;
+    transition: width 0.5s ease;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h2>Dashboard</h2>
+    <p>Welcome back, <strong>{{ practitioner.name }}</strong>. Here's your practice intelligence overview.</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="{{ url_for('intake.intake_form') }}" class="btn btn-primary" id="btn-new-intake">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      New Intake
+    </a>
+    <a href="{{ url_for('triage.triage_view') }}" class="btn btn-ghost" id="btn-triage">Lead Triage</a>
+    <a href="/api/clients/export.csv" class="btn btn-ghost" id="btn-export-csv">
+      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export CSV
+    </a>
+  </div>
+</div>
+
+<div class="page-body">
+
+  <!-- ── Pending schema fields banner ─────────────────────────────── -->
+  {% if pending_fields %}
+  <div class="schema-banner" id="schema-banner">
+    <div class="schema-banner-icon">🧩</div>
+    <div style="flex:1;">
+      <h4>Gemini proposed {{ pending_fields|length }} new profile field{{ 's' if pending_fields|length > 1 else '' }}</h4>
+      <p>Review and confirm or reject each field. Confirmed fields will appear on all client profiles.</p>
+      <div class="field-chips" id="field-chips">
+        {% for f in pending_fields %}
+        <div class="field-chip" id="chip-{{ f.id }}">
+          <span>{{ f.field_label }} <span style="color:var(--text-muted);font-size:10px;">({{ f.field_type }})</span></span>
+          <button class="chip-confirm" onclick="confirmField('{{ f.id }}')" title="Confirm field">✓</button>
+          <button class="chip-reject"  onclick="rejectField('{{ f.id }}')"  title="Reject field">✕</button>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Overdue reminders banner ─────────────────────────────────── -->
+  {% if stats.overdue_reminders > 0 %}
+  <div class="overdue-banner">
+    <p>⚠ <strong>{{ stats.overdue_reminders }} overdue reminder{{ 's' if stats.overdue_reminders > 1 else '' }}</strong> need your attention.</p>
+    <a href="{{ url_for('api.reminders_page') }}" class="btn btn-ghost" style="font-size:12px;padding:6px 14px;">View Reminders</a>
+  </div>
+  {% endif %}
+
+  <!-- ── Stats row ─────────────────────────────────────────────────────────── -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Total Clients</div>
+      <div class="stat-value accent">{{ stats.total }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">High Risk</div>
+      <div class="stat-value danger">{{ stats.high_risk }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">High Urgency</div>
+      <div class="stat-value warn">{{ stats.high_urgency }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Segments</div>
+      <div class="stat-value">{{ stats.segments }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pending Reminders</div>
+      <div class="stat-value {% if stats.overdue_reminders > 0 %}danger{% else %}success{% endif %}">
+        {{ stats.pending_reminders }}
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Segment breakdown ─────────────────────────────────────────────────── -->
+  {% if segment_counts %}
+  <p class="section-title">Segments</p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:28px;">
+    {% set max_count = segment_counts.values()|max if segment_counts else 1 %}
+    {% for name, count in segment_counts.items() %}
+    {% if count > 0 %}
+    <div class="card" style="padding:14px 18px;">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">{{ name }}</div>
+      <div style="font-size:24px;font-weight:700;color:var(--accent);">{{ count }}</div>
+      <div class="seg-bar" style="width:{{ [(count / max_count * 100)|int, 8]|max }}%"></div>
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- ── Clients table ─────────────────────────────────────────────────────── -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap;">
+    <p class="section-title" style="margin:0;">All Clients</p>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" id="client-search" placeholder="Quick filter…"
+        style="width:160px;padding:7px 12px;font-size:12px;"
+        oninput="filterClients(this.value)" />
+      <button class="btn btn-ghost" onclick="openSearch()" style="font-size:12px;padding:7px 14px;" id="btn-ai-search">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        AI Search
+      </button>
+    </div>
+  </div>
+
+  {% if clients %}
+  <div class="table-wrap">
+    <table id="clients-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Segment</th>
+          <th>Risk</th>
+          <th>Urgency</th>
+          <th>Email</th>
+          <th>Status</th>
+          <th>Joined</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clients %}
+        <tr class="client-row" data-name="{{ c.name|lower }}" data-email="{{ (c.email or '')|lower }}">
+          <td><a href="{{ url_for('api.client_detail', client_id=c.id) }}" class="row-link" style="font-weight:600;">{{ c.name }}</a></td>
+          <td><span class="badge badge-segment">{{ c.segment.name if c.segment else '—' }}</span></td>
+          <td>
+            {% if c.risk_level == 'High' %}<span class="badge badge-high">High</span>
+            {% elif c.risk_level == 'Medium' %}<span class="badge badge-medium">Medium</span>
+            {% elif c.risk_level == 'Low' %}<span class="badge badge-low">Low</span>
+            {% else %}<span class="badge badge-unknown">—</span>{% endif %}
+          </td>
+          <td>
+            {% if c.urgency == 'High' %}<span class="badge badge-high">High</span>
+            {% elif c.urgency == 'Medium' %}<span class="badge badge-medium">Medium</span>
+            {% elif c.urgency == 'Low' %}<span class="badge badge-low">Low</span>
+            {% else %}<span class="badge badge-unknown">—</span>{% endif %}
+          </td>
+          <td style="color:var(--text-muted);">{{ c.email or '—' }}</td>
+          <td><span class="badge badge-low">{{ c.status }}</span></td>
+          <td style="color:var(--text-muted);font-size:12px;">{{ c.created_at.strftime('%d %b %Y') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="empty-state card">
+    <svg width="40" height="40" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+    <p>No clients yet.</p>
+    <small>Submit a client intake form to get started.</small>
+  </div>
+  {% endif %}
+
+  <!-- ── Recent intakes ─────────────────────────────────────────────────────── -->
+  {% if recent_intakes %}
+  <p class="section-title" style="margin-top:32px;">Recent Intake Submissions</p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Source</th><th>Client</th><th>Segment</th><th>Confidence</th><th>Received</th></tr>
+      </thead>
+      <tbody>
+        {% for r in recent_intakes %}
+        <tr>
+          <td><span class="badge badge-unknown">{{ r.source }}</span></td>
+          <td>{{ r.raw_json.get('full_name') or r.raw_json.get('name', '—') }}</td>
+          <td>{% if r.classification_result %}<span class="badge badge-segment">{{ r.classification_result.get('segment', '—') }}</span>{% else %}—{% endif %}</td>
+          <td>{% if r.classification_result %}{{ '%.0f%%'|format(r.classification_result.get('confidence', 0) * 100) }}{% else %}<span style="color:var(--text-muted);">Pending</span>{% endif %}</td>
+          <td style="font-size:12px;color:var(--text-muted);">{{ r.created_at.strftime('%d %b %Y %H:%M') }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+// ── Client search filter
+function filterClients(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.client-row').forEach(row => {
+    const match = row.dataset.name.includes(q) || row.dataset.email.includes(q);
+    row.style.display = match ? '' : 'none';
+  });
+}
+
+// ── confirm / reject schema fields
+async function confirmField(id) {
+  await fetch(`/api/schema/${id}/confirm`, {method:'POST'});
+  removeChip(id);
+}
+async function rejectField(id) {
+  await fetch(`/api/schema/${id}/reject`, {method:'DELETE'});
+  removeChip(id);
+}
+function removeChip(id) {
+  const chip = document.getElementById('chip-' + id);
+  if (chip) chip.remove();
+  const remaining = document.querySelectorAll('.field-chip').length;
+  if (!remaining) {
+    const banner = document.getElementById('schema-banner');
+    if (banner) banner.remove();
+  }
+}
+</script>
+{% endblock %}

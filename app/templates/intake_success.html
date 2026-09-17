@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Intake Success — Client Intelligence{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Intake Processed ✓</h2>
+  <p>The client has been classified and added to your dashboard.</p>
+</div>
+<div class="page-body">
+  <div class="card" style="max-width:600px;">
+    <p class="section-title">Classification Result</p>
+    <table style="font-size:14px;width:100%;">
+      <tbody>
+        <tr><td style="color:var(--text-muted);padding:8px 14px 8px 0;width:160px;">Client name</td><td style="font-weight:600;">{{ client.name }}</td></tr>
+        <tr style="border-top:1px solid var(--border);"><td style="color:var(--text-muted);padding:8px 14px 8px 0;">Segment</td><td><span class="badge badge-segment">{{ result.segment }}</span></td></tr>
+        <tr style="border-top:1px solid var(--border);"><td style="color:var(--text-muted);padding:8px 14px 8px 0;">Risk level</td><td>
+          {% if result.risk_level == 'High' %}<span class="badge badge-high">High</span>
+          {% elif result.risk_level == 'Medium' %}<span class="badge badge-medium">Medium</span>
+          {% else %}<span class="badge badge-low">{{ result.risk_level }}</span>{% endif %}
+        </td></tr>
+        <tr style="border-top:1px solid var(--border);"><td style="color:var(--text-muted);padding:8px 14px 8px 0;">Urgency</td><td>
+          {% if result.urgency == 'High' %}<span class="badge badge-high">High</span>
+          {% elif result.urgency == 'Medium' %}<span class="badge badge-medium">Medium</span>
+          {% else %}<span class="badge badge-low">{{ result.urgency }}</span>{% endif %}
+        </td></tr>
+        <tr style="border-top:1px solid var(--border);"><td style="color:var(--text-muted);padding:8px 14px 8px 0;">Confidence</td><td>{{ '%.0f%%'|format(result.confidence * 100) }}</td></tr>
+        <tr style="border-top:1px solid var(--border);"><td style="color:var(--text-muted);padding:8px 14px 8px 0;vertical-align:top;">Recommended approach</td><td style="font-size:13px;line-height:1.6;padding:8px 0;">{{ result.recommended_approach }}</td></tr>
+        {% if result.reasoning %}
+        <tr style="border-top:1px solid var(--border);"><td style="color:var(--text-muted);padding:8px 14px 8px 0;vertical-align:top;">Reasoning</td><td style="font-size:12px;color:var(--text-muted);line-height:1.6;padding:8px 0;">{{ result.reasoning }}</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    {% if result.proposed_new_fields %}
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+      <p style="font-size:12px;font-weight:600;color:var(--warn);margin-bottom:8px;">⚡ AI proposed {{ result.proposed_new_fields|length }} new schema field(s) to optimize your custom workflow.</p>
+      {% for f in result.proposed_new_fields %}
+      <code style="font-size:11px;background:var(--surface-2);padding:2px 8px;border-radius:4px;margin-right:6px;">{{ f.key }}</code>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="margin-top:20px;display:flex;gap:12px;">
+      <a href="{{ url_for('api.client_detail', client_id=client.id) }}" class="btn btn-primary">View Client Record</a>
+      <a href="{{ url_for('intake.intake_form') }}" class="btn btn-ghost">New Intake</a>
+      <a href="{{ url_for('api.dashboard') }}" class="btn btn-ghost">Dashboard</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Timeline — {{ client.name }} · Client Intelligence{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Timeline ── */
+  .timeline {
+    position: relative;
+    padding-left: 48px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 19px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent), transparent);
+    opacity: 0.3;
+  }
+  .tl-event {
+    position: relative;
+    margin-bottom: 20px;
+    animation: fadeSlide 0.25s ease both;
+  }
+  .tl-event:nth-child(1)  { animation-delay: 0.02s; }
+  .tl-event:nth-child(2)  { animation-delay: 0.04s; }
+  .tl-event:nth-child(3)  { animation-delay: 0.06s; }
+  .tl-event:nth-child(4)  { animation-delay: 0.08s; }
+  .tl-event:nth-child(5)  { animation-delay: 0.10s; }
+  @keyframes fadeSlide {
+    from { opacity:0; transform:translateX(-8px); }
+    to   { opacity:1; transform:translateX(0); }
+  }
+  .tl-dot {
+    position: absolute;
+    left: -33px;
+    top: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    transition: border-color 0.15s;
+  }
+  .tl-event:hover .tl-dot { border-color: var(--accent); }
+
+  .tl-card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    transition: border-color 0.15s, transform 0.15s;
+  }
+  .tl-card:hover { border-color: rgba(108,99,255,0.3); transform: translateX(2px); }
+
+  .tl-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 6px;
+  }
+  .tl-type-badge {
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 2px 7px; border-radius: 10px;
+  }
+  .tl-type-intake      { background:rgba(108,99,255,0.15); color:var(--accent); }
+  .tl-type-note        { background:rgba(0,212,170,0.12);  color:var(--accent-2); }
+  .tl-type-reminder    { background:rgba(255,169,77,0.15); color:var(--warn); }
+  .tl-type-query       { background:rgba(132,148,181,0.12); color:var(--text-muted); }
+  .tl-type-appointment { background:rgba(74,222,128,0.12); color:var(--success); }
+  .tl-type-appointment.status-cancelled { background:rgba(255,77,109,0.12); color:var(--danger); }
+
+  .tl-title   { font-size: 13px; font-weight: 600; flex:1; }
+  .tl-time    { font-size: 11px; color: var(--text-muted); flex-shrink:0; }
+  .tl-detail  { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+  .tl-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .tl-pill {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border);
+  }
+  .tl-pill.positive  { background:rgba(74,222,128,0.1);  color:var(--success); border-color:rgba(74,222,128,0.2); }
+  .tl-pill.negative  { background:rgba(255,77,109,0.1);  color:var(--danger);  border-color:rgba(255,77,109,0.2); }
+  .tl-pill.anxious   { background:rgba(255,169,77,0.1);  color:var(--warn);    border-color:rgba(255,169,77,0.2); }
+  .tl-pill.concerned { background:rgba(255,169,77,0.1);  color:var(--warn);    border-color:rgba(255,169,77,0.2); }
+  .tl-pill.escalated { background:rgba(255,169,77,0.15); color:var(--warn);    border-color:rgba(255,169,77,0.3); }
+  .tl-pill.resolved  { background:rgba(74,222,128,0.1);  color:var(--success); border-color:rgba(74,222,128,0.2); }
+
+  /* Filter bar */
+  .tl-filter-bar {
+    display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px;
+  }
+  .tl-filter-btn {
+    font-size: 11px; padding: 5px 12px; border-radius: 20px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-muted); cursor: pointer; font-family: inherit;
+    transition: all 0.15s;
+  }
+  .tl-filter-btn.active, .tl-filter-btn:hover {
+    background: rgba(108,99,255,0.12); border-color: var(--accent); color: var(--accent);
+  }
+  .tl-empty {
+    padding: 48px; text-align: center; color: var(--text-muted); font-size: 13px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h2>{{ client.name }} — Timeline</h2>
+    <p>Complete history of all interactions, notes, appointments, and queries.</p>
+  </div>
+  <div style="display:flex;gap:10px;">
+    <a href="/clients/{{ client.id }}" class="btn btn-ghost" id="btn-back-client">← Client Overview</a>
+    <a href="{{ url_for('api.dashboard') }}" class="btn btn-ghost" id="btn-back-dash">Dashboard</a>
+  </div>
+</div>
+
+<div class="page-body">
+
+  <div class="tl-filter-bar" id="tl-filter-bar">
+    <button class="tl-filter-btn active" data-type="all"         onclick="setFilter('all', this)">All</button>
+    <button class="tl-filter-btn"        data-type="intake"      onclick="setFilter('intake', this)">📋 Intake</button>
+    <button class="tl-filter-btn"        data-type="note"        onclick="setFilter('note', this)">📝 Notes</button>
+    <button class="tl-filter-btn"        data-type="reminder"    onclick="setFilter('reminder', this)">⏰ Reminders</button>
+    <button class="tl-filter-btn"        data-type="appointment" onclick="setFilter('appointment', this)">📅 Appointments</button>
+    <button class="tl-filter-btn"        data-type="query"       onclick="setFilter('query', this)">❓ Queries</button>
+  </div>
+
+  <div class="timeline" id="timeline-container">
+    <div class="tl-empty">Loading timeline…</div>
+  </div>
+
+</div>
+
+<script>
+const CLIENT_ID = "{{ client.id }}";
+let allEvents   = [];
+let activeFilter= 'all';
+
+async function loadTimeline() {
+  const res  = await fetch(`/api/clients/${CLIENT_ID}/timeline`);
+  const data = await res.json();
+  allEvents  = data.events || [];
+  renderTimeline();
+}
+
+function setFilter(type, btn) {
+  activeFilter = type;
+  document.querySelectorAll('.tl-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderTimeline();
+}
+
+function renderTimeline() {
+  const container = document.getElementById('timeline-container');
+  const events = activeFilter === 'all'
+    ? allEvents
+    : allEvents.filter(e => e.type === activeFilter);
+
+  if (!events.length) {
+    container.innerHTML = `<div class="tl-empty">No ${activeFilter === 'all' ? '' : activeFilter + ' '}events yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = events.map(e => buildEvent(e)).join('');
+}
+
+function buildEvent(e) {
+  const ts  = new Date(e.ts);
+  const ago = timeAgo(ts);
+  const dateStr = ts.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+  const timeStr = ts.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:true});
+
+  let pills = '';
+  const m = e.meta || {};
+
+  if (e.type === 'note') {
+    if (m.sentiment) {
+      const cls = m.sentiment.toLowerCase();
+      pills += `<span class="tl-pill ${cls}">😊 ${m.sentiment}</span>`;
+    }
+    if (m.input_type === 'voice') pills += `<span class="tl-pill">🎙 Voice</span>`;
+    if (m.action_items?.length)   pills += `<span class="tl-pill">${m.action_items.length} action${m.action_items.length>1?'s':''}</span>`;
+  }
+
+  if (e.type === 'reminder') {
+    const due = new Date(m.due_at);
+    pills += `<span class="tl-pill">Due: ${due.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>`;
+    if (m.resolved) pills += `<span class="tl-pill resolved">✓ Resolved</span>`;
+    else if (due < new Date()) pills += `<span class="tl-pill negative">Overdue</span>`;
+  }
+
+  if (e.type === 'query') {
+    if (m.escalated)    pills += `<span class="tl-pill escalated">⚠ Escalated</span>`;
+    if (m.ai_response)  pills += `<span class="tl-pill">AI responded</span>`;
+    if (m.practitioner_response) pills += `<span class="tl-pill resolved">✓ Practitioner replied</span>`;
+  }
+
+  if (e.type === 'appointment') {
+    pills += `<span class="tl-pill">${m.duration_minutes}min</span>`;
+    if (m.meet_link) pills += `<a href="${m.meet_link}" target="_blank" class="tl-pill" style="color:var(--accent-2);text-decoration:none;">Join ↗</a>`;
+  }
+
+  const badgeCls = `tl-type-${e.type}${e.type==='appointment'&&m.status==='cancelled'?' status-cancelled':''}`;
+
+  return `
+  <div class="tl-event">
+    <div class="tl-dot">${e.icon}</div>
+    <div class="tl-card">
+      <div class="tl-header">
+        <span class="tl-type-badge ${badgeCls}">${e.type}</span>
+        <span class="tl-title">${e.title}</span>
+        <span class="tl-time" title="${dateStr} ${timeStr}">${ago}</span>
+      </div>
+      ${e.detail ? `<div class="tl-detail">${e.detail}</div>` : ''}
+      ${pills ? `<div class="tl-actions">${pills}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+function timeAgo(date) {
+  const sec = Math.floor((Date.now() - date) / 1000);
+  if (sec < 60)   return 'just now';
+  if (sec < 3600) return `${Math.floor(sec/60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
+  if (sec < 86400*30) return `${Math.floor(sec/86400)}d ago`;
+  return date.toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+}
+
+loadTimeline();
+</script>
+{% endblock %}

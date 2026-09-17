@@ -1,0 +1,53 @@
+vertical: financial_advisory
+
+display:
+  client_label: "Client"
+  session_label: "Session"
+
+intake_questions:
+  - key: full_name
+    label: "Full name"
+  - key: email
+    label: "Email address"
+  - key: phone
+    label: "Phone number"
+  - key: occupation
+    label: "Occupation / Business"
+  - key: annual_income_range
+    label: "Annual income range"
+  - key: primary_financial_goal
+    label: "Primary financial goal"
+  - key: existing_investments
+    label: "Existing investments (if any)"
+  - key: risk_tolerance
+    label: "Risk tolerance (Low / Medium / High)"
+  - key: key_concern
+    label: "Top financial concern right now"
+
+classification_prompt_template: |
+  You are an expert financial advisory client analyst.
+
+  Given the client intake response below, produce a JSON object with exactly these keys:
+  - segment: one of ["High-Net-Worth Prospect", "Growth-Stage Professional", "Debt-Restructure Focus", "Retirement Planner", "Business Owner", "First-Time Investor", "Other"]
+  - risk_level: "Low" | "Medium" | "High"
+  - urgency: "Low" | "Medium" | "High"
+  - recommended_approach: a 1-2 sentence briefing for the practitioner
+  - confidence: a float between 0.0 and 1.0
+  - reasoning: 1-3 sentences explaining the classification
+  - proposed_new_fields: a list of objects [{key, label, type}] for any data point implied by the response but not in the standard intake form; empty list if none
+
+  Rules:
+  - Respond ONLY with the JSON object. No markdown fences, no explanation outside the JSON.
+  - risk_level and urgency reflect financial vulnerability and how soon the client needs attention.
+  - If income or assets are unclear, set confidence below 0.6.
+  - proposed_new_fields keys must be snake_case.
+
+escalation:
+  ai_client_response_allowed: false
+  confidence_threshold_for_autocommit: 0.75
+
+compliance_notes: |
+  This vertical operates under financial advice regulations.
+  The AI organises and summarises — it never issues financial recommendations directly to clients.
+  All AI outputs are for practitioner internal use only.
+  Every classification decision is logged with its input and timestamp.

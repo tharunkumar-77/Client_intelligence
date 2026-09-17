@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block title %}Appointments — Client Intelligence{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Calendar grid ── */
+  .cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .cal-nav {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .cal-month-label {
+    font-size: 16px; font-weight: 700; min-width: 160px; text-align: center;
+  }
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .cal-dow {
+    background: var(--surface-2);
+    padding: 8px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+  }
+  .cal-day {
+    background: var(--glass);
+    min-height: 90px;
+    padding: 8px;
+    position: relative;
+    cursor: default;
+    transition: background 0.15s;
+  }
+  .cal-day.other-month { opacity: 0.35; }
+  .cal-day.today { background: rgba(108,99,255,0.08); border: 1px solid rgba(108,99,255,0.3); }
+  .cal-day-num {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .cal-day.today .cal-day-num { color: var(--accent); }
+  .cal-event {
+    font-size: 10px;
+    border-radius: 4px;
+    padding: 2px 5px;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: opacity 0.1s;
+  }
+  .cal-event:hover { opacity: 0.8; }
+  .cal-event.scheduled  { background: rgba(108,99,255,0.20); color: var(--accent); }
+  .cal-event.completed  { background: rgba(74,222,128,0.15); color: var(--success); }
+  .cal-event.cancelled  { background: rgba(255,77,109,0.15); color: var(--danger); text-decoration: line-through; }
+
+  /* ── Upcoming list ── */
+  .appt-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+  .appt-row:hover { background: rgba(108,99,255,0.05); }
+  .appt-row:last-child { border-bottom: none; }
+  .appt-time {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 80px;
+    font-variant-numeric: tabular-nums;
+  }
+  .appt-client { font-size: 13px; font-weight: 600; flex: 1; }
+  .appt-dur { font-size: 11px; color: var(--text-muted); }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .status-dot.scheduled { background: var(--accent); }
+  .status-dot.completed { background: var(--success); }
+  .status-dot.cancelled { background: var(--danger); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 500;
+    background: rgba(8,13,26,0.75); backdrop-filter: blur(4px);
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: var(--shadow);
+    animation: fadeSlide 0.2s ease;
+  }
+  @keyframes fadeSlide {
+    from { opacity:0; transform:translateY(-10px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  .modal-title { font-size: 15px; font-weight: 700; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+  <div>
+    <h2>Appointments</h2>
+    <p>Schedule and manage client sessions.</p>
+  </div>
+  <button class="btn btn-primary" onclick="openModal()" id="btn-new-appt">
+    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+    New Appointment
+  </button>
+</div>
+
+<div class="page-body">
+  <div style="display:grid;grid-template-columns:1fr 360px;gap:24px;" class="appt-layout">
+
+    <!-- ── Calendar ── -->
+    <div class="card" style="padding:24px;">
+      <div class="cal-header">
+        <div class="cal-nav">
+          <button class="btn btn-ghost" style="padding:6px 10px;" onclick="changeMonth(-1)" id="btn-prev-month">←</button>
+          <div class="cal-month-label" id="cal-month-label">—</div>
+          <button class="btn btn-ghost" style="padding:6px 10px;" onclick="changeMonth(1)" id="btn-next-month">→</button>
+        </div>
+        <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;" onclick="goToday()" id="btn-today">Today</button>
+      </div>
+      <div class="cal-grid" id="cal-grid">
+        <!-- days of week headers -->
+        <div class="cal-dow">Sun</div><div class="cal-dow">Mon</div><div class="cal-dow">Tue</div>
+        <div class="cal-dow">Wed</div><div class="cal-dow">Thu</div><div class="cal-dow">Fri</div><div class="cal-dow">Sat</div>
+      </div>
+    </div>
+
+    <!-- ── Upcoming list ── -->
+    <div>
+      <p class="section-title">Upcoming</p>
+      <div class="card" style="padding:0;">
+        <div id="upcoming-list">
+          <div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px;">Loading…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── New Appointment Modal ── -->
+<div class="modal-overlay" id="appt-modal" onclick="closeModalOutside(event)">
+  <div class="modal-box">
+    <div class="modal-title">New Appointment</div>
+    <div class="form-group" style="margin-bottom:14px;">
+      <label for="appt-client-sel">Client</label>
+      <select id="appt-client-sel"></select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="form-group">
+        <label for="appt-date">Date</label>
+        <input id="appt-date" type="date" />
+      </div>
+      <div class="form-group">
+        <label for="appt-time">Time</label>
+        <input id="appt-time" type="time" value="10:00" />
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="form-group">
+        <label for="appt-dur">Duration (min)</label>
+        <input id="appt-dur" type="number" value="60" min="15" step="15" />
+      </div>
+      <div class="form-group">
+        <label for="appt-status">Status</label>
+        <select id="appt-status">
+          <option value="scheduled">Scheduled</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:4px;">
+      <label for="appt-link">Meet Link (optional)</label>
+      <input id="appt-link" type="url" placeholder="https://meet.google.com/…" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveAppointment()" id="appt-save-btn">
+        <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>
+        Save
+      </button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <span id="appt-msg" style="font-size:12px;color:var(--text-muted);align-self:center;"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+let allAppts  = [];
+let allClients = [];
+let curYear   = new Date().getFullYear();
+let curMonth  = new Date().getMonth(); // 0-indexed
+
+const MONTH_NAMES = ['January','February','March','April','May','June',
+  'July','August','September','October','November','December'];
+
+// ── Load all data ───────────────────────────────────────────────────────────
+async function loadAll() {
+  const [apptRes, clientRes] = await Promise.all([
+    fetch('/api/appointments'),
+    fetch('/api/clients'),
+  ]);
+  allAppts   = await apptRes.json();
+  allClients = await clientRes.json();
+  renderCalendar();
+  renderUpcoming();
+  populateClientSelect();
+}
+
+// ── Calendar ────────────────────────────────────────────────────────────────
+function changeMonth(delta) {
+  curMonth += delta;
+  if (curMonth < 0)  { curMonth = 11; curYear--; }
+  if (curMonth > 11) { curMonth = 0;  curYear++; }
+  renderCalendar();
+}
+
+function goToday() {
+  curYear  = new Date().getFullYear();
+  curMonth = new Date().getMonth();
+  renderCalendar();
+}
+
+function renderCalendar() {
+  document.getElementById('cal-month-label').textContent = `${MONTH_NAMES[curMonth]} ${curYear}`;
+
+  const firstDay = new Date(curYear, curMonth, 1).getDay();
+  const daysInMonth = new Date(curYear, curMonth + 1, 0).getDate();
+  const today = new Date();
+
+  const grid = document.getElementById('cal-grid');
+  // Remove old day cells (keep 7 header cells)
+  while (grid.children.length > 7) grid.removeChild(grid.lastChild);
+
+  // leading blanks from previous month
+  const prevDays = new Date(curYear, curMonth, 0).getDate();
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const d = document.createElement('div');
+    d.className = 'cal-day other-month';
+    d.innerHTML = `<div class="cal-day-num">${prevDays - i}</div>`;
+    grid.appendChild(d);
+  }
+
+  // current month days
+  for (let day = 1; day <= daysInMonth; day++) {
+    const isToday = (today.getFullYear() === curYear && today.getMonth() === curMonth && today.getDate() === day);
+    const d = document.createElement('div');
+    d.className = 'cal-day' + (isToday ? ' today' : '');
+    d.innerHTML = `<div class="cal-day-num">${day}</div>`;
+
+    // find appointments on this day
+    const dayAppts = allAppts.filter(a => {
+      const dt = new Date(a.scheduled_at);
+      return dt.getFullYear() === curYear && dt.getMonth() === curMonth && dt.getDate() === day;
+    });
+    dayAppts.forEach(a => {
+      const ev = document.createElement('div');
+      ev.className = `cal-event ${a.status}`;
+      const t = new Date(a.scheduled_at).toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',hour12:true});
+      ev.textContent = `${t} ${a.client_name}`;
+      ev.title = `${a.client_name} · ${a.duration_minutes}min · ${a.status}`;
+      ev.onclick = () => quickEdit(a);
+      d.appendChild(ev);
+    });
+
+    grid.appendChild(d);
+  }
+
+  // trailing cells
+  const total = firstDay + daysInMonth;
+  const trailing = total % 7 === 0 ? 0 : 7 - (total % 7);
+  for (let i = 1; i <= trailing; i++) {
+    const d = document.createElement('div');
+    d.className = 'cal-day other-month';
+    d.innerHTML = `<div class="cal-day-num">${i}</div>`;
+    grid.appendChild(d);
+  }
+}
+
+// ── Upcoming list ───────────────────────────────────────────────────────────
+function renderUpcoming() {
+  const now = Date.now();
+  const soon = allAppts
+    .filter(a => a.status === 'scheduled' && new Date(a.scheduled_at) >= now)
+    .slice(0, 10);
+
+  const list = document.getElementById('upcoming-list');
+  if (!soon.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">No upcoming appointments.</div>';
+    return;
+  }
+  list.innerHTML = soon.map(a => {
+    const dt = new Date(a.scheduled_at);
+    const dateStr = dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    const timeStr = dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+    const link = a.meet_link ? `<a href="${a.meet_link}" target="_blank" style="font-size:10px;color:var(--accent-2);margin-left:6px;">Join</a>` : '';
+    return `<div class="appt-row">
+      <div class="status-dot ${a.status}"></div>
+      <div>
+        <div class="appt-time">${dateStr} · ${timeStr}</div>
+        <div class="appt-client">${a.client_name}</div>
+      </div>
+      <div class="appt-dur">${a.duration_minutes}min${link ? '' : ''}</div>
+      ${link}
+      <button onclick="markDone('${a.id}')" style="background:none;border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px 8px;font-size:10px;color:var(--text-muted);cursor:pointer;font-family:inherit;" title="Mark completed">✓</button>
+    </div>`;
+  }).join('');
+}
+
+async function markDone(id) {
+  await fetch(`/api/appointments/${id}`, {
+    method: 'PATCH',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({status:'completed'}),
+  });
+  await loadAll();
+}
+
+// ── Quick edit on click ─────────────────────────────────────────────────────
+function quickEdit(appt) {
+  const statuses = ['scheduled','completed','cancelled'];
+  const next = statuses[(statuses.indexOf(appt.status)+1)%statuses.length];
+  if (!confirm(`Change "${appt.client_name}" appointment to "${next}"?`)) return;
+  fetch(`/api/appointments/${appt.id}`, {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({status: next}),
+  }).then(loadAll);
+}
+
+// ── New Appointment Modal ────────────────────────────────────────────────────
+function populateClientSelect() {
+  const sel = document.getElementById('appt-client-sel');
+  sel.innerHTML = allClients.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+function openModal() {
+  // Default date = today
+  const today = new Date().toISOString().slice(0,10);
+  document.getElementById('appt-date').value = today;
+  document.getElementById('appt-msg').textContent = '';
+  document.getElementById('appt-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('appt-modal').classList.remove('open');
+}
+
+function closeModalOutside(e) {
+  if (e.target === document.getElementById('appt-modal')) closeModal();
+}
+
+async function saveAppointment() {
+  const clientId  = document.getElementById('appt-client-sel').value;
+  const date      = document.getElementById('appt-date').value;
+  const time      = document.getElementById('appt-time').value;
+  const dur       = document.getElementById('appt-dur').value;
+  const status    = document.getElementById('appt-status').value;
+  const link      = document.getElementById('appt-link').value.trim();
+  const btn       = document.getElementById('appt-save-btn');
+  const msg       = document.getElementById('appt-msg');
+
+  if (!clientId || !date || !time) {
+    msg.textContent = '⚠ Fill all required fields.';
+    return;
+  }
+
+  const scheduledAt = `${date}T${time}:00`;
+
+  btn.disabled = true;
+  msg.textContent = '⏳ Saving…';
+
+  try {
+    const res = await fetch(`/api/clients/${clientId}/appointments`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        scheduled_at: scheduledAt,
+        duration_minutes: parseInt(dur),
+        status,
+        meet_link: link || null,
+      }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+    closeModal();
+    await loadAll();
+  } catch(e) {
+    msg.textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Responsive
+function fixLayout() {
+  const el = document.querySelector('.appt-layout');
+  if (el) el.style.gridTemplateColumns = window.innerWidth < 900 ? '1fr' : '1fr 360px';
+}
+window.addEventListener('resize', fixLayout);
+fixLayout();
+
+loadAll();
+</script>
+{% endblock %}

@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: client-intelligence
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn "app:create_app()" --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

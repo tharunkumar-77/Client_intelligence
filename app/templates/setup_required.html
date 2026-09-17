@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Setup Required — Client Intelligence{% endblock %}
+{% block content %}
+<div class="page-body" style="display:flex;align-items:center;justify-content:center;min-height:60vh;">
+  <div class="card" style="max-width:480px;text-align:center;padding:40px;">
+    <h2 style="margin-bottom:12px;">Setup Required</h2>
+    <p style="color:var(--text-muted);font-size:14px;line-height:1.7;margin-bottom:24px;">
+      No practitioner account found. Run the seed script to create your account:
+    </p>
+    <code style="display:block;background:var(--surface-2);padding:12px 16px;border-radius:8px;font-size:13px;text-align:left;">
+      python scripts/seed.py
+    </code>
+  </div>
+</div>
+{% endblock %}

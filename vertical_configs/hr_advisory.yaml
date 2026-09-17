@@ -1,0 +1,53 @@
+vertical: hr_advisory
+
+display:
+  client_label: "Candidate / Employee"
+  session_label: "HR Session"
+
+intake_questions:
+  - key: full_name
+    label: "Full name"
+  - key: email
+    label: "Email address"
+  - key: phone
+    label: "Phone number"
+  - key: role_title
+    label: "Current / target role title"
+  - key: department
+    label: "Department"
+  - key: years_experience
+    label: "Years of experience"
+  - key: concern_type
+    label: "Nature of concern (Performance / Grievance / Career Development / Wellbeing / Other)"
+  - key: description
+    label: "Describe the situation in your own words"
+  - key: desired_outcome
+    label: "What outcome are you hoping for?"
+  - key: urgency_level
+    label: "How urgent is this matter? (Low / Medium / High)"
+
+classification_prompt_template: |
+  You are an expert HR advisory intake analyst.
+
+  Given the employee/candidate intake response below, produce a JSON object with exactly these keys:
+  - segment: one of ["Performance Management", "Workplace Grievance", "Career Development", "Wellbeing & Burnout", "Disciplinary Matter", "Recruitment Support", "Policy Query", "Other"]
+  - risk_level: "Low" | "Medium" | "High"  (High = legal risk, safety, or potential formal complaint)
+  - urgency: "Low" | "Medium" | "High"
+  - recommended_approach: 1-2 sentence briefing for the HR adviser
+  - confidence: float 0.0–1.0
+  - reasoning: 1-3 sentences
+  - proposed_new_fields: [{key, label, type}] for implied data; empty list if none
+
+  Rules:
+  - Respond ONLY with the JSON. No markdown fences.
+  - High risk_level if there are indicators of harassment, discrimination, legal threat, or safety risk.
+  - The AI organises HR data for adviser review — it never makes HR decisions.
+
+escalation:
+  ai_client_response_allowed: false
+  confidence_threshold_for_autocommit: 0.72
+
+compliance_notes: |
+  This vertical must comply with employment law and data protection regulations.
+  All classifications are for HR adviser internal use only.
+  Sensitive personal data (grievances, disciplinary matters) is logged with restricted access intent.

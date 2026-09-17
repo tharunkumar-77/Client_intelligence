@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Reminders — Client Intelligence{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Reminders</h2>
+  <p>Pending follow-ups auto-generated from session notes.</p>
+</div>
+
+<div class="page-body">
+  <div id="reminders-area">
+    <div class="empty-state card"><p>Loading…</p></div>
+  </div>
+</div>
+
+<script>
+async function loadReminders() {
+  const area = document.getElementById('reminders-area');
+  const res  = await fetch('/reminders?pending=true');
+  const list = await res.json();
+
+  if (!list.length) {
+    area.innerHTML = `<div class="empty-state card">
+      <p>No pending reminders.</p>
+      <small>Reminders are created automatically when Gemini detects a follow-up date in a session note.</small>
+    </div>`;
+    return;
+  }
+
+  area.innerHTML = `<div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Client</th><th>Due</th><th>Message</th><th></th>
+      </tr></thead>
+      <tbody>${list.map(r => {
+        const due = new Date(r.due_at);
+        const now = new Date();
+        const overdue = due < now;
+        const ds = due.toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'});
+        return `<tr>
+          <td><a class="row-link" href="/clients/${r.client_id}">${r.client_id.slice(0,8)}…</a></td>
+          <td style="color:${overdue ? 'var(--danger)' : 'var(--warn)'};">${ds}${overdue ? ' ⚠︎' : ''}</td>
+          <td>${r.message}</td>
+          <td><button class="btn btn-ghost" style="font-size:11px;padding:5px 10px;" onclick="resolve('${r.id}')">Resolve</button></td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+async function resolve(id) {
+  await fetch('/reminders/' + id + '/resolve', {method:'POST'});
+  loadReminders();
+}
+
+loadReminders();
+</script>
+{% endblock %}

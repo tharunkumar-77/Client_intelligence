@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — Client Intelligence</title>
+  <meta name="description" content="Sign in to the Client Intelligence Platform." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #080d1a; --surface: #0f1629; --surface-2: #162040;
+      --border: rgba(99,130,255,0.15); --accent: #6c63ff; --accent-2: #00d4aa;
+      --text: #e2e8f0; --text-muted: #8494b5; --danger: #ff4d6d; --success: #4ade80;
+      --radius: 12px; --radius-sm: 8px;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-wrap {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+    }
+    .login-brand {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .login-brand h1 {
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.5px;
+    }
+    .login-brand p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+    label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+    input {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      padding: 11px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: var(--accent); }
+    .btn-login {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent), #5b52e8);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: all 0.15s;
+      box-shadow: 0 2px 12px rgba(108,99,255,0.35);
+    }
+    .btn-login:hover { transform: translateY(-1px); box-shadow: 0 4px 18px rgba(108,99,255,0.5); }
+    .error-msg {
+      background: rgba(255,77,109,0.12);
+      border: 1px solid rgba(255,77,109,0.3);
+      color: #ff8fa3;
+      font-size: 13px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+    }
+    .dev-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-brand">
+    <h1>Client Intelligence</h1>
+    <p>AI-augmented practice management</p>
+  </div>
+  <div class="login-card">
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="POST" action="{{ url_for('auth.login') }}">
+      <div class="form-group">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" required autocomplete="email" placeholder="adviser@practice.com" />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <button type="submit" class="btn-login">Sign In</button>
+    </form>
+  </div>
+  <p class="dev-hint" style="font-size: 13px;">Don't have an account? <a href="{{ url_for('auth.signup') }}" style="color: var(--accent); font-weight: 500; text-decoration: none;">Sign Up</a></p>
+</div>
+</body>
+</html>

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Lead Triage — Client Intelligence{% endblock %}
+
+{% block extra_head %}
+<style>
+  .priority-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .priority-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+  .fill-high   { background: var(--danger); }
+  .fill-medium { background: var(--warn); }
+  .fill-low    { background: var(--success); }
+  .lead-card {
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 14px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: start;
+  }
+  .lead-card:hover { border-color: var(--accent); }
+  .lead-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .lead-attrs { font-size: 12px; color: var(--text-muted); }
+  .lead-reasoning { font-size: 13px; color: var(--text-muted); margin-top: 8px; font-style: italic; }
+  .lead-score {
+    font-size: 28px;
+    font-weight: 700;
+    text-align: right;
+    line-height: 1;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Lead Triage</h2>
+  <p>Leads ranked by Gemini AI priority score — highest urgency first.</p>
+</div>
+
+<div class="page-body">
+  {% if not leads %}
+  <div class="empty-state card">
+    <p>No unconverted leads yet.</p>
+    <small>Leads appear here after intake submissions without matching clients.</small>
+  </div>
+  {% else %}
+
+  <div class="stats-grid" style="margin-bottom:24px;">
+    <div class="stat-card">
+      <div class="stat-label">Total Leads</div>
+      <div class="stat-value accent">{{ leads|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">High Priority</div>
+      <div class="stat-value danger">{{ leads|selectattr('priority_label','eq','High')|list|length }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Medium Priority</div>
+      <div class="stat-value warn">{{ leads|selectattr('priority_label','eq','Medium')|list|length }}</div>
+    </div>
+  </div>
+
+  {% for lead in leads %}
+  {% set pc = lead.get('priority_label','Medium') %}
+  <div class="lead-card">
+    <div>
+      <div class="lead-name">{{ lead.name }}</div>
+      <div class="lead-attrs">
+        {% if lead.email %}{{ lead.email }}{% endif %}
+        {% if lead.phone %} · {{ lead.phone }}{% endif %}
+      </div>
+      {% if lead.attributes %}
+      <div class="lead-attrs" style="margin-top:4px;">
+        {% for k,v in lead.attributes.items() %}{{ k|replace('_',' ')|title }}: {{ v }}{% if not loop.last %} · {% endif %}{% endfor %}
+      </div>
+      {% endif %}
+      <div class="lead-reasoning">{{ lead.get('reasoning','') }}</div>
+      <div class="priority-bar">
+        <div class="priority-fill fill-{{ pc|lower }}" style="width:{{ lead.get('priority_score',50) }}%"></div>
+      </div>
+    </div>
+    <div>
+      <div class="lead-score {% if pc=='High' %}danger{% elif pc=='Medium' %}warn{% else %}success{% endif %}">
+        {{ lead.get('priority_score',50) }}
+      </div>
+      <span class="badge badge-{% if pc=='High' %}high{% elif pc=='Medium' %}medium{% else %}low{% endif %}" style="margin-top:6px;">{{ pc }}</span>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% endif %}
+</div>
+{% endblock %}
