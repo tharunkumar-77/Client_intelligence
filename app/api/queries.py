@@ -3,9 +3,10 @@ import logging
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
+from flask import abort
 
+from app.extensions import limiter, get_client_for_user
 from app.models.client import Client
-from app.models.practitioner import Practitioner
 from app.models.query import ClientQuery
 from app.services.audit_service import log_event
 from app.services.query_service import process_query
@@ -16,19 +17,21 @@ logger = logging.getLogger(__name__)
 
 @queries_bp.route("/clients/<client_id>/queries", methods=["GET"])
 def list_queries(client_id):
-    client = Client.query.get_or_404(client_id)
+    client = get_client_for_user(client_id)
     queries = (
         ClientQuery.query
         .filter_by(client_id=client.id)
         .order_by(ClientQuery.created_at.desc())
+        .limit(100)
         .all()
     )
     return jsonify([q.to_dict() for q in queries])
 
 
 @queries_bp.route("/clients/<client_id>/queries", methods=["POST"])
+@limiter.limit("10 per minute")
 def add_query(client_id):
-    client = Client.query.get_or_404(client_id)
+    client = get_client_for_user(client_id)
     practitioner = current_user
     if not practitioner:
         return jsonify({"error": "No practitioner configured."}), 500
@@ -57,6 +60,8 @@ def respond_query(client_id, query_id):
     from datetime import datetime, timezone
 
     query = ClientQuery.query.get_or_404(query_id)
+    if query.client.practitioner_id != current_user.id:
+        abort(404)
     body = request.get_json(silent=True) or {}
     response_text = (body.get("response") or "").strip()
     if not response_text:

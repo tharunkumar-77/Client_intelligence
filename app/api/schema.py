@@ -28,7 +28,10 @@ def pending_fields():
 
 @schema_bp.route("/api/schema/<field_id>/confirm", methods=["POST"])
 def confirm_field(field_id):
+    from flask import abort
     sf = SchemaField.query.get_or_404(field_id)
+    if sf.practitioner_id != current_user.id:
+        abort(404)
     sf.confirmed = True
     db.session.commit()
     return jsonify(sf.to_dict()), 200
@@ -36,7 +39,10 @@ def confirm_field(field_id):
 
 @schema_bp.route("/api/schema/<field_id>/reject", methods=["DELETE"])
 def reject_field(field_id):
+    from flask import abort
     sf = SchemaField.query.get_or_404(field_id)
+    if sf.practitioner_id != current_user.id:
+        abort(404)
     db.session.delete(sf)
     db.session.commit()
     return jsonify({"deleted": field_id}), 200

@@ -24,13 +24,16 @@ def list_reminders():
     q = Reminder.query.filter_by(practitioner_id=practitioner.id)
     if only_pending:
         q = q.filter(Reminder.resolved_at.is_(None))
-    reminders = q.order_by(Reminder.due_at.asc()).all()
+    reminders = q.order_by(Reminder.due_at.asc()).limit(100).all()
     return jsonify([r.to_dict() for r in reminders])
 
 
 @reminders_bp.route("/reminders/<reminder_id>/resolve", methods=["POST"])
 def resolve_reminder(reminder_id):
+    from flask import abort
     reminder = Reminder.query.get_or_404(reminder_id)
+    if reminder.practitioner_id != current_user.id:
+        abort(404)
     reminder.resolved_at = datetime.now(timezone.utc)
     db.session.commit()
     return jsonify(reminder.to_dict()), 200
@@ -38,10 +41,13 @@ def resolve_reminder(reminder_id):
 
 @reminders_bp.route("/clients/<client_id>/reminders", methods=["GET"])
 def client_reminders(client_id):
+    from app.extensions import get_client_for_user
+    client = get_client_for_user(client_id)
     reminders = (
         Reminder.query
-        .filter_by(client_id=client_id)
+        .filter_by(client_id=client.id)
         .order_by(Reminder.due_at.asc())
+        .limit(100)
         .all()
     )
     return jsonify([r.to_dict() for r in reminders])

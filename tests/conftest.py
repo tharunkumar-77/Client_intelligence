@@ -3,8 +3,8 @@ import os
 
 os.environ["FLASK_ENV"] = "testing"
 os.environ["DATABASE_URL"] = "postgresql://ci_user:ci_password@localhost:5432/ci_test"
-os.environ["ANTHROPIC_API_KEY"] = "test-key"
-os.environ["LLM_PROVIDER"] = "anthropic"
+os.environ["GEMINI_API_KEY"] = "test-key"
+os.environ["LLM_PROVIDER"] = "gemini"
 
 from app import create_app
 from app.extensions import db as _db

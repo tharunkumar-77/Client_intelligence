@@ -8,11 +8,11 @@ from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, make_response, request
 from flask_login import current_user
+from flask import abort
 
 from app.auth.routes import login_required
-from app.extensions import db
+from app.extensions import db, get_client_for_user
 from app.models.client import Client
-from app.models.practitioner import Practitioner
 from app.services.embedding_service import backfill_embeddings, semantic_search
 
 search_bp = Blueprint("search", __name__)
@@ -56,6 +56,7 @@ def export_clients_csv():
         Client.query
         .filter_by(practitioner_id=practitioner.id)
         .order_by(Client.created_at.desc())
+        .limit(1000)
         .all()
     )
 
@@ -96,7 +97,7 @@ def update_client(client_id):
     PATCH /api/clients/<id>
     Body: { name?, email?, phone?, status?, risk_level?, urgency?, attributes? }
     """
-    client = Client.query.get_or_404(client_id)
+    client = get_client_for_user(client_id)
     body = request.get_json(silent=True) or {}
 
     allowed = {"name", "email", "phone", "status", "risk_level", "urgency"}

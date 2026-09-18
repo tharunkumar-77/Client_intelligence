@@ -4,9 +4,8 @@ import logging
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
-from app.extensions import db
+from app.extensions import db, limiter, get_client_for_user
 from app.models.client import Client
-from app.models.practitioner import Practitioner
 from app.services.audit_service import log_event
 from app.services.note_service import process_note
 from app.services.voice_service import transcribe_audio
@@ -16,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @voice_bp.route("/clients/<client_id>/notes/voice", methods=["POST"])
+@limiter.limit("5 per minute")
 def voice_note(client_id):
     """
     Accepts a multipart/form-data audio file ('audio' field) or
@@ -25,7 +25,7 @@ def voice_note(client_id):
       audio bytes → Gemini transcription → note_service.process_note
     Returns the same NoteResult JSON as the typed notes endpoint.
     """
-    client = Client.query.get_or_404(client_id)
+    client = get_client_for_user(client_id)
     practitioner = current_user
     if not practitioner:
         return jsonify({"error": "No practitioner configured."}), 500

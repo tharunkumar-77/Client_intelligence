@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 @timeline_bp.route("/clients/<client_id>/timeline")
 @login_required
 def timeline_page(client_id):
-    client = Client.query.get_or_404(client_id)
+    from app.extensions import get_client_for_user
+    client = get_client_for_user(client_id)
     from app.models.practitioner import Practitioner
     practitioner = current_user
     return render_template("timeline.html", client=client, practitioner=practitioner)
@@ -34,11 +35,12 @@ def client_timeline(client_id):
     Returns a merged, sorted event list for the client.
     Each event: { type, title, detail, ts, meta }
     """
-    client = Client.query.get_or_404(client_id)
+    from app.extensions import get_client_for_user
+    client = get_client_for_user(client_id)
     events = []
 
     # ── Intake ────────────────────────────────────────────────────────────────
-    intakes = IntakeResponse.query.filter_by(client_id=client.id).all()
+    intakes = IntakeResponse.query.filter_by(client_id=client.id).limit(10).all()
     for r in intakes:
         cr = r.classification_result or {}
         events.append({
@@ -51,7 +53,7 @@ def client_timeline(client_id):
         })
 
     # ── Notes ─────────────────────────────────────────────────────────────────
-    notes = Note.query.filter_by(client_id=client.id).order_by(Note.created_at).all()
+    notes = Note.query.filter_by(client_id=client.id).order_by(Note.created_at.desc()).limit(100).all()
     for n in notes:
         so = n.structured_output or {}
         badge = "🎙" if n.input_type == "voice" else "📝"
@@ -69,7 +71,7 @@ def client_timeline(client_id):
         })
 
     # ── Reminders ─────────────────────────────────────────────────────────────
-    reminders = Reminder.query.filter_by(client_id=client.id).order_by(Reminder.created_at).all()
+    reminders = Reminder.query.filter_by(client_id=client.id).order_by(Reminder.created_at.desc()).limit(100).all()
     for r in reminders:
         events.append({
             "type":   "reminder",
@@ -85,7 +87,7 @@ def client_timeline(client_id):
         })
 
     # ── Queries ───────────────────────────────────────────────────────────────
-    queries = ClientQuery.query.filter_by(client_id=client.id).order_by(ClientQuery.created_at).all()
+    queries = ClientQuery.query.filter_by(client_id=client.id).order_by(ClientQuery.created_at.desc()).limit(100).all()
     for q in queries:
         events.append({
             "type":   "query",
@@ -104,7 +106,8 @@ def client_timeline(client_id):
     appointments = (
         Appointment.query
         .filter_by(client_id=client.id)
-        .order_by(Appointment.scheduled_at)
+        .order_by(Appointment.scheduled_at.desc())
+        .limit(100)
         .all()
     )
     for a in appointments:

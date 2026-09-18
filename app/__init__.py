@@ -59,13 +59,24 @@ def create_app(config_name: str = "development") -> Flask:
         )
 
     # ── Error handlers ─────────────────────────────────────────────────────────
+    from flask import request, jsonify
+
+    def wants_json():
+        return request.accept_mimetypes.accept_json and \
+            not request.accept_mimetypes.accept_html or \
+            request.path.startswith("/api/")
+
     @app.errorhandler(404)
     def not_found(e):
+        if wants_json():
+            return jsonify({"error": "Not found"}), 404
         from flask import render_template as _rt
         return _rt("404.html"), 404
 
     @app.errorhandler(500)
     def server_error(e):
+        if wants_json():
+            return jsonify({"error": "Internal server error"}), 500
         from flask import render_template as _rt
         return _rt("500.html"), 500
 

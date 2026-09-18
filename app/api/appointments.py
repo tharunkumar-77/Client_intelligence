@@ -9,10 +9,9 @@ from flask import Blueprint, jsonify, request, render_template
 from flask_login import current_user
 
 from app.auth.routes import login_required
-from app.extensions import db
+from app.extensions import db, get_client_for_user
 from app.models.appointment import Appointment
 from app.models.client import Client
-from app.models.practitioner import Practitioner
 from app.services.audit_service import log_event
 
 appointments_bp = Blueprint("appointments", __name__)
@@ -57,7 +56,7 @@ def list_appointments():
     if client_id:
         q = q.filter(Appointment.client_id == client_id)
 
-    appts = q.order_by(Appointment.scheduled_at.asc()).all()
+    appts = q.order_by(Appointment.scheduled_at.asc()).limit(100).all()
 
     result = []
     for a in appts:
@@ -78,7 +77,7 @@ def create_appointment(client_id):
     POST /api/clients/<id>/appointments
     Body: { scheduled_at, duration_minutes?, meet_link?, status? }
     """
-    client = Client.query.get_or_404(client_id)
+    client = get_client_for_user(client_id)
     practitioner = current_user
     if not practitioner:
         return jsonify({"error": "No practitioner"}), 500
@@ -94,13 +93,19 @@ def create_appointment(client_id):
     except ValueError:
         return jsonify({"error": "Invalid scheduled_at format. Use ISO 8601."}), 400
 
+    duration = int(body.get("duration_minutes", 60))
+    duration = max(1, min(1440, duration))
+    status = body.get("status", "scheduled")
+    if status not in ("scheduled", "completed", "cancelled"):
+        status = "scheduled"
+
     appt = Appointment(
         client_id=client.id,
         practitioner_id=practitioner.id,
         scheduled_at=scheduled_at,
-        duration_minutes=int(body.get("duration_minutes", 60)),
+        duration_minutes=duration,
         meet_link=body.get("meet_link") or None,
-        status=body.get("status", "scheduled"),
+        status=status,
     )
     db.session.add(appt)
     db.session.commit()
@@ -127,7 +132,10 @@ def update_appointment(appointment_id):
     PATCH /api/appointments/<id>
     Body: { scheduled_at?, duration_minutes?, meet_link?, status? }
     """
+    from flask import abort
     appt = Appointment.query.get_or_404(appointment_id)
+    if appt.practitioner_id != current_user.id:
+        abort(404)
     body = request.get_json(silent=True) or {}
 
     if "scheduled_at" in body:
@@ -155,7 +163,10 @@ def update_appointment(appointment_id):
 @appointments_bp.route("/api/appointments/<appointment_id>", methods=["DELETE"])
 @login_required
 def delete_appointment(appointment_id):
+    from flask import abort
     appt = Appointment.query.get_or_404(appointment_id)
+    if appt.practitioner_id != current_user.id:
+        abort(404)
     db.session.delete(appt)
     db.session.commit()
     return jsonify({"deleted": appointment_id}), 200
@@ -166,10 +177,12 @@ def delete_appointment(appointment_id):
 @appointments_bp.route("/api/clients/<client_id>/appointments", methods=["GET"])
 @login_required
 def client_appointments(client_id):
+    client = get_client_for_user(client_id)
     appts = (
         Appointment.query
-        .filter_by(client_id=client_id)
+        .filter_by(client_id=client.id)
         .order_by(Appointment.scheduled_at.asc())
+        .limit(100)
         .all()
     )
     return jsonify([a.to_dict() for a in appts])

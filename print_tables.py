@@ -1,7 +1,11 @@
 import psycopg2
 
+import os
+import psycopg2
+
 try:
-    conn = psycopg2.connect("postgresql://ci_user:ci_password@127.0.0.1:5432/client_intelligence")
+    db_url = os.environ.get("DATABASE_URL", "postgresql://ci_user:ci_password@127.0.0.1:5432/client_intelligence")
+    conn = psycopg2.connect(db_url)
     cursor = conn.cursor()
     cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public';")
     print("TABLES IN DB:")

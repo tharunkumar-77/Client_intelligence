@@ -21,8 +21,6 @@ class Appointment(db.Model):
 
     client = db.relationship("Client", back_populates="appointments")
 
-    def __init__(self, **kwargs):
-        super(Appointment, self).__init__(**kwargs)
 
     def to_dict(self):
         return {

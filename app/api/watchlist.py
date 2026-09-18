@@ -6,11 +6,11 @@ import logging
 
 from flask import Blueprint, jsonify, request, render_template
 from flask_login import current_user
+from flask import abort
 
 from app.auth.routes import login_required
-from app.extensions import db
+from app.extensions import db, get_client_for_user
 from app.models.client import Client
-from app.models.practitioner import Practitioner
 from app.models.watchlist import Watchlist
 
 watchlist_bp = Blueprint("watchlist", __name__)
@@ -67,6 +67,8 @@ def create_watchlist():
 @login_required
 def delete_watchlist(wl_id):
     wl = Watchlist.query.get_or_404(wl_id)
+    if wl.practitioner_id != current_user.id:
+        abort(404)
     db.session.delete(wl)
     db.session.commit()
     return jsonify({"deleted": wl_id}), 200
@@ -78,14 +80,18 @@ def delete_watchlist(wl_id):
 @login_required
 def watchlist_clients(wl_id):
     wl = Watchlist.query.get_or_404(wl_id)
-    return jsonify([c.to_dict() for c in wl.clients.all()])
+    if wl.practitioner_id != current_user.id:
+        abort(404)
+    return jsonify([c.to_dict() for c in wl.clients.limit(100).all()])
 
 
 @watchlist_bp.route("/api/watchlists/<wl_id>/clients/<client_id>", methods=["POST"])
 @login_required
 def add_to_watchlist(wl_id, client_id):
     wl     = Watchlist.query.get_or_404(wl_id)
-    client = Client.query.get_or_404(client_id)
+    if wl.practitioner_id != current_user.id:
+        abort(404)
+    client = get_client_for_user(client_id)
     if client not in wl.clients.all():
         wl.clients.append(client)
         db.session.commit()
@@ -96,7 +102,9 @@ def add_to_watchlist(wl_id, client_id):
 @login_required
 def remove_from_watchlist(wl_id, client_id):
     wl     = Watchlist.query.get_or_404(wl_id)
-    client = Client.query.get_or_404(client_id)
+    if wl.practitioner_id != current_user.id:
+        abort(404)
+    client = get_client_for_user(client_id)
     if client in wl.clients.all():
         wl.clients.remove(client)
         db.session.commit()
@@ -108,6 +116,8 @@ def remove_from_watchlist(wl_id, client_id):
 @watchlist_bp.route("/api/clients/<client_id>/watchlists", methods=["GET"])
 @login_required
 def client_watchlists(client_id):
+    # Verify client ownership
+    client = get_client_for_user(client_id)
     practitioner = current_user
     if not practitioner:
         return jsonify([])

@@ -33,13 +33,17 @@ def resolve_practitioner(data=None) -> Practitioner:
     if pid:
         return Practitioner.query.get(pid)
         
-    return Practitioner.query.first()
+    if current_app.config.get("ENV") == "development" or current_app.config.get("DEBUG"):
+        return Practitioner.query.first()
+    return None
 
 
 def _verify_signature(payload: bytes, header_sig: str) -> bool:
     secret = current_app.config.get("INTAKE_WEBHOOK_SECRET", "")
     if not secret:
-        return True  # skip verification in dev when no secret is set
+        if current_app.config.get("ENV") == "development" or current_app.config.get("DEBUG"):
+            return True  # skip verification in dev when no secret is set
+        return False
     expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
     return hmac.compare_digest(expected, header_sig or "")
 
@@ -61,7 +65,11 @@ def _upsert_client(practitioner: Practitioner, data: dict, result: Classificatio
     base_keys = {"full_name", "name", "email", "phone"}
     attributes = {k: v for k, v in data.items() if k not in base_keys and not k.startswith("_")}
 
-    client = Client.query.filter_by(practitioner_id=practitioner.id, email=email).first() if email else None
+    client = None
+    if email:
+        client = Client.query.filter_by(practitioner_id=practitioner.id, email=email).first()
+    if not client and phone:
+        client = Client.query.filter_by(practitioner_id=practitioner.id, phone=phone).first()
 
     if client:
         client.segment_id = segment.id
@@ -126,6 +134,18 @@ def webhook():
         return jsonify({"error": "No practitioner configured. Run: python scripts/seed.py"}), 500
 
     source = data.pop("_source", "native_form")
+
+    # Check for deduplication (prevent duplicate processing within a short time window)
+    import json
+    payload_hash = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+    from datetime import timedelta
+    recent_dup = IntakeResponse.query.filter(
+        IntakeResponse.practitioner_id == practitioner.id,
+        IntakeResponse.created_at >= datetime.now(timezone.utc) - timedelta(minutes=5)
+    ).all()
+    if any(hashlib.sha256(json.dumps(r.raw_json, sort_keys=True).encode()).hexdigest() == payload_hash for r in recent_dup):
+        logger.warning("Duplicate webhook received recently, ignoring.")
+        return jsonify({"status": "ignored", "reason": "duplicate"}), 200
 
     # 1 — Persist raw intake
     intake = IntakeResponse(
@@ -212,6 +232,7 @@ def intake_form_submit():
     email = str(form_data.get("email") or "").strip()
     name = str(form_data.get("full_name") or form_data.get("name") or "").strip()
     
+    # Validate required fields
     if not email or not name:
         practitioner = resolve_practitioner(form_data)
         vc = load_vertical_config(practitioner.vertical) if practitioner else None
@@ -219,18 +240,6 @@ def intake_form_submit():
 
     form_data["_source"] = "native_form"
 
-    # Monkey-patch get_json for the webhook handler reuse
-    with current_app.test_request_context(
-        "/intake/webhook",
-        method="POST",
-        json=form_data,
-        headers={"Content-Type": "application/json"},
-    ):
-        from flask import request as inner_request
-        # Instead of duplicating, we call the pipeline directly via the service layer
-        pass
-
-    # Simpler: just POST to the webhook inline
     practitioner = resolve_practitioner(form_data)
     if not practitioner:
         return "No practitioner configured.", 500

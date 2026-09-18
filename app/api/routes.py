@@ -124,7 +124,7 @@ def audit_log():
 @login_required
 def api_clients():
     practitioner = current_user
-    clients = Client.query.filter_by(practitioner_id=practitioner.id).all()
+    clients = Client.query.filter_by(practitioner_id=practitioner.id).limit(100).all()
     return jsonify([c.to_dict() for c in clients])
 
 

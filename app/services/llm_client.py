@@ -13,14 +13,8 @@ def call_llm(
 ) -> str:
     """
     Call the configured LLM provider and return the raw text response.
-    Swap providers by setting LLM_PROVIDER env var (default: 'gemini').
     """
-    provider = os.environ.get("LLM_PROVIDER", "gemini").lower()
-    if provider == "gemini":
-        return _call_gemini(system_prompt, user_content, model, max_tokens)
-    if provider == "anthropic":
-        return _call_anthropic(system_prompt, user_content, model, max_tokens)
-    raise NotImplementedError(f"LLM provider '{provider}' is not yet supported.")
+    return _call_gemini(system_prompt, user_content, model, max_tokens)
 
 
 def _call_gemini(
@@ -46,30 +40,18 @@ def _call_gemini(
     )
 
     logger.debug(f"Calling Gemini model={effective_model}, max_tokens={max_tokens}")
-    response = gemini.generate_content(user_content)
-    return response.text
+    import time
+    for attempt in range(2):
+        try:
+            response = gemini.generate_content(
+                user_content,
+                request_options={"timeout": 30.0}
+            )
+            return response.text
+        except Exception as e:
+            if attempt == 1:
+                raise
+            logger.warning("LLM call failed (attempt %d): %s", attempt + 1, e)
+            time.sleep(1)
 
 
-def _call_anthropic(
-    system_prompt: str,
-    user_content: str,
-    model: Optional[str],
-    max_tokens: int,
-) -> str:
-    import anthropic  # lazy import — only needed when actually calling
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY is not set.")
-
-    effective_model = model or os.environ.get("CLAUDE_MODEL", "claude-opus-4-5")
-    client = anthropic.Anthropic(api_key=api_key)
-
-    logger.debug(f"Calling Claude model={effective_model}, max_tokens={max_tokens}")
-    message = client.messages.create(
-        model=effective_model,
-        max_tokens=max_tokens,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_content}],
-    )
-    return message.content[0].text
