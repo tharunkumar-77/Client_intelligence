@@ -128,7 +128,7 @@
     </div>
     <div class="stat-card">
       <div class="stat-label">Pending Reminders</div>
-      <div class="stat-value {% if stats.overdue_reminders > 0 %}danger{% else %}success{% endif %}">
+      <div class="stat-value {{ 'danger' if stats.overdue_reminders > 0 else 'success' }}">
         {{ stats.pending_reminders }}
       </div>
     </div>
@@ -144,7 +144,8 @@
     <div class="card" style="padding:14px 18px;">
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">{{ name }}</div>
       <div style="font-size:24px;font-weight:700;color:var(--accent);">{{ count }}</div>
-      <div class="seg-bar" style="width:{{ [(count / max_count * 100)|int, 8]|max }}%"></div>
+      {% set w = (count / max_count * 100)|int %}
+      <div class="seg-bar" {{ ('style="width: ' ~ w ~ '%; min-width: 8%;"')|safe }}></div>
     </div>
     {% endif %}
     {% endfor %}

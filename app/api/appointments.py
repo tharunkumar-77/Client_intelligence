@@ -100,12 +100,12 @@ def create_appointment(client_id):
         status = "scheduled"
 
     appt = Appointment(
-        client_id=client.id,
-        practitioner_id=practitioner.id,
-        scheduled_at=scheduled_at,
-        duration_minutes=duration,
-        meet_link=body.get("meet_link") or None,
-        status=status,
+        client_id=client.id,  # type: ignore
+        practitioner_id=practitioner.id,  # type: ignore
+        scheduled_at=scheduled_at,  # type: ignore
+        duration_minutes=duration,  # type: ignore
+        meet_link=body.get("meet_link") or None,  # type: ignore
+        status=status,  # type: ignore
     )
     db.session.add(appt)
     db.session.commit()

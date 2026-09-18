@@ -51,7 +51,7 @@ def _verify_signature(payload: bytes, header_sig: str) -> bool:
 def _find_or_create_segment(practitioner_id: str, name: str) -> Segment:
     seg = Segment.query.filter_by(practitioner_id=practitioner_id, name=name.strip()).first()
     if not seg:
-        seg = Segment(practitioner_id=practitioner_id, name=name.strip(), ai_derived=True)
+        seg = Segment(practitioner_id=practitioner_id, name=name.strip(), ai_derived=True)  # type: ignore
         db.session.add(seg)
         db.session.flush()
     return seg
@@ -82,15 +82,15 @@ def _upsert_client(practitioner: Practitioner, data: dict, result: Classificatio
         client.attributes = existing
     else:
         client = Client(
-            practitioner_id=practitioner.id,
-            name=name,
-            email=email,
-            phone=phone,
-            segment_id=segment.id,
-            risk_level=result.risk_level,
-            urgency=result.urgency,
-            status="active",
-            attributes=attributes,
+            practitioner_id=practitioner.id,  # type: ignore
+            name=name,  # type: ignore
+            email=email,  # type: ignore
+            phone=phone,  # type: ignore
+            segment_id=segment.id,  # type: ignore
+            risk_level=result.risk_level,  # type: ignore
+            urgency=result.urgency,  # type: ignore
+            status="active",  # type: ignore
+            attributes=attributes,  # type: ignore
         )
         db.session.add(client)
         db.session.flush()
@@ -149,9 +149,9 @@ def webhook():
 
     # 1 — Persist raw intake
     intake = IntakeResponse(
-        practitioner_id=practitioner.id,
-        raw_json=data,
-        source=source,
+        practitioner_id=practitioner.id,  # type: ignore
+        raw_json=data,  # type: ignore
+        source=source,  # type: ignore
     )
     db.session.add(intake)
     db.session.flush()
@@ -249,7 +249,7 @@ def intake_form_submit():
 
     vc = load_vertical_config(practitioner.vertical)
 
-    intake = IntakeResponse(practitioner_id=practitioner.id, raw_json=data, source=source)
+    intake = IntakeResponse(practitioner_id=practitioner.id, raw_json=data, source=source)  # type: ignore
     db.session.add(intake)
     db.session.flush()
 

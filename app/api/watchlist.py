@@ -52,9 +52,9 @@ def create_watchlist():
     if not name:
         return jsonify({"error": "name is required"}), 400
     wl = Watchlist(
-        practitioner_id=practitioner.id,
-        name=name,
-        description=body.get("description") or "",
+        practitioner_id=practitioner.id,  # type: ignore
+        name=name,  # type: ignore
+        description=body.get("description") or "",  # type: ignore
     )
     db.session.add(wl)
     db.session.commit()
